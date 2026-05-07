@@ -6,23 +6,17 @@ from datetime import date
 import qrcode
 from io import BytesIO
 
-# ---------------- CONFIGURACIÓN ----------------
-
 st.set_page_config(
     page_title="Sistema de Herramientas",
     layout="wide"
 )
 
-# ---------------- DISEÑO CSS ----------------
-
 st.markdown("""
 <style>
-
 .stApp {
     background-color: #f5f7fb;
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
 }
@@ -31,7 +25,6 @@ section[data-testid="stSidebar"] * {
     color: white !important;
 }
 
-/* Títulos */
 h1 {
     color: #0f172a;
     font-size: 42px !important;
@@ -42,7 +35,6 @@ h2, h3 {
     color: #1e293b;
 }
 
-/* Métricas */
 div[data-testid="stMetric"] {
     background: white;
     padding: 24px;
@@ -51,13 +43,6 @@ div[data-testid="stMetric"] {
     border: 1px solid #e5e7eb;
 }
 
-div[data-testid="stMetricValue"] {
-    font-size: 34px;
-    font-weight: 800;
-    color: #0f172a;
-}
-
-/* Formularios */
 div[data-testid="stForm"] {
     background: white;
     padding: 28px;
@@ -66,7 +51,6 @@ div[data-testid="stForm"] {
     border: 1px solid #e5e7eb;
 }
 
-/* Tablas */
 div[data-testid="stDataFrame"] {
     background: white;
     border-radius: 18px;
@@ -74,7 +58,6 @@ div[data-testid="stDataFrame"] {
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
-/* Botones */
 .stButton button,
 .stDownloadButton button {
     background: linear-gradient(90deg, #2563eb, #1d4ed8) !important;
@@ -84,16 +67,8 @@ div[data-testid="stDataFrame"] {
     padding: 10px 22px !important;
     font-weight: 600 !important;
 }
-
-/* Alertas */
-div[data-testid="stAlert"] {
-    border-radius: 14px;
-}
-
 </style>
 """, unsafe_allow_html=True)
-
-# ---------------- BASE DE DATOS ----------------
 
 DB_NAME = "inventario_herramientas.db"
 
@@ -119,6 +94,7 @@ def crear_tablas():
     CREATE TABLE IF NOT EXISTS solicitudes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre_usuario TEXT NOT NULL,
+        carrera TEXT,
         area TEXT,
         herramienta_id INTEGER,
         herramienta_nombre TEXT,
@@ -172,21 +148,34 @@ def obtener_danos():
     conn.close()
     return df
 
+def tabla_solicitudes_visible(df):
+    if df.empty:
+        return df
+
+    columnas = [
+        "id",
+        "nombre_usuario",
+        "carrera",
+        "area",
+        "herramienta_nombre",
+        "cantidad",
+        "fecha_solicitud",
+        "fecha_devolucion",
+        "motivo"
+    ]
+
+    columnas_existentes = [col for col in columnas if col in df.columns]
+    return df[columnas_existentes]
+
 def generar_qr(link):
     img = qrcode.make(link)
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     return buffer.getvalue()
 
-# ---------------- PARÁMETROS DE URL ----------------
-
 params = st.query_params
 modo = params.get("modo", "admin")
 herramienta_qr = params.get("herramienta", None)
-
-# ==================================================
-# MODO USUARIO
-# ==================================================
 
 if modo == "usuario":
 
@@ -206,7 +195,6 @@ if modo == "usuario":
             index_herramienta = 0
 
         with st.form("formulario_usuario"):
-
             herramienta_nombre = st.selectbox(
                 "Herramienta disponible",
                 nombres_herramientas,
@@ -218,7 +206,19 @@ if modo == "usuario":
             st.info(f"Disponibles actualmente: {herramienta_info['cantidad_disponible']}")
 
             nombre_usuario = st.text_input("Nombre completo")
-            area = st.text_input("Área o departamento")
+
+            carrera = st.selectbox(
+                "Carrera",
+                [
+                    "Ingeniería en Datos e Inteligencia Artificial",
+                    "Ingeniería en Sistemas",
+                    "Ingeniería Mecatrónica",
+                    "Ingeniería Industrial",
+                    "Otra"
+                ]
+            )
+
+            area = st.text_input("Área o laboratorio")
 
             cantidad = st.number_input(
                 "Cantidad a solicitar",
@@ -236,7 +236,7 @@ if modo == "usuario":
                 if nombre_usuario.strip() == "":
                     st.error("Debes escribir tu nombre.")
                 elif area.strip() == "":
-                    st.error("Debes escribir tu área.")
+                    st.error("Debes escribir tu área o laboratorio.")
                 elif motivo.strip() == "":
                     st.error("Debes escribir el motivo.")
                 else:
@@ -246,6 +246,7 @@ if modo == "usuario":
                     cursor.execute("""
                     INSERT INTO solicitudes (
                         nombre_usuario,
+                        carrera,
                         area,
                         herramienta_id,
                         herramienta_nombre,
@@ -255,9 +256,10 @@ if modo == "usuario":
                         motivo,
                         estado
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         nombre_usuario,
+                        carrera,
                         area,
                         int(herramienta_info["id"]),
                         herramienta_nombre,
@@ -273,10 +275,6 @@ if modo == "usuario":
 
                     st.success("Solicitud enviada correctamente.")
                     st.info("Espera a que el administrador apruebe tu solicitud.")
-
-# ==================================================
-# MODO ADMINISTRADOR
-# ==================================================
 
 else:
 
@@ -295,8 +293,6 @@ else:
             "QR"
         ]
     )
-
-    # ---------------- DASHBOARD ----------------
 
     if menu == "Dashboard":
 
@@ -336,6 +332,7 @@ else:
                     y="Solicitudes",
                     title="Herramientas más solicitadas"
                 )
+
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Aún no hay solicitudes para graficar.")
@@ -351,19 +348,18 @@ else:
                     title="Estado de herramientas",
                     hole=0.45
                 )
+
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("Aún no hay herramientas registradas.")
 
         st.subheader("Últimas solicitudes")
-        st.dataframe(solicitudes, use_container_width=True)
-
-    # ---------------- INVENTARIO ----------------
+        st.dataframe(tabla_solicitudes_visible(solicitudes), use_container_width=True)
 
     elif menu == "Inventario":
 
         st.markdown("# Inventario")
-        st.caption("Registro y control de herramientas disponibles.")
+        st.caption("Registro de herramientas y control de stock.")
 
         with st.form("form_herramienta"):
             nombre = st.text_input("Nombre de la herramienta")
@@ -405,8 +401,6 @@ else:
         st.subheader("Herramientas registradas")
         st.dataframe(obtener_herramientas(), use_container_width=True)
 
-    # ---------------- SOLICITUDES ----------------
-
     elif menu == "Solicitudes":
 
         st.markdown("# Solicitudes")
@@ -417,7 +411,7 @@ else:
         if solicitudes.empty:
             st.info("No hay solicitudes registradas.")
         else:
-            st.dataframe(solicitudes, use_container_width=True)
+            st.dataframe(tabla_solicitudes_visible(solicitudes), use_container_width=True)
 
             pendientes = solicitudes[solicitudes["estado"] == "Pendiente"]
 
@@ -489,8 +483,6 @@ else:
 
                         st.warning("Solicitud rechazada.")
 
-    # ---------------- DEVOLUCIONES ----------------
-
     elif menu == "Devoluciones":
 
         st.markdown("# Devoluciones")
@@ -534,14 +526,12 @@ else:
                 st.success("Devolución registrada correctamente.")
 
         st.subheader("Préstamos activos")
-        st.dataframe(activos, use_container_width=True)
-
-    # ---------------- DAÑOS ----------------
+        st.dataframe(tabla_solicitudes_visible(activos), use_container_width=True)
 
     elif menu == "Herramientas dañadas":
 
         st.markdown("# Herramientas dañadas")
-        st.caption("Registra daños, fallas o herramientas en mal estado.")
+        st.caption("Registro de herramientas dañadas o en mal estado.")
 
         herramientas = obtener_herramientas()
 
@@ -586,8 +576,6 @@ else:
         st.subheader("Historial de daños")
         st.dataframe(obtener_danos(), use_container_width=True)
 
-    # ---------------- REPORTES ----------------
-
     elif menu == "Reportes":
 
         st.markdown("# Reportes")
@@ -625,15 +613,13 @@ else:
 
             st.plotly_chart(fig2, use_container_width=True)
 
-    # ---------------- QR ----------------
-
     elif menu == "QR":
 
         st.markdown("# Generador de QR")
         st.caption("Crea códigos QR para que los usuarios soliciten herramientas.")
 
         url_app = st.text_input(
-            "Pega aquí el link público de tu app",
+            "Link público de la app",
             value="https://sistema-herramientas-upq.streamlit.app"
         )
 
