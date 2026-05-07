@@ -118,7 +118,21 @@ def crear_tablas():
     conn.commit()
     conn.close()
 
+def actualizar_base_datos():
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(solicitudes)")
+    columnas = [columna[1] for columna in cursor.fetchall()]
+
+    if "carrera" not in columnas:
+        cursor.execute("ALTER TABLE solicitudes ADD COLUMN carrera TEXT")
+
+    conn.commit()
+    conn.close()
+
 crear_tablas()
+actualizar_base_datos()
 
 def obtener_herramientas():
     conn = conectar()
