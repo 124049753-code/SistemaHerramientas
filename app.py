@@ -6,14 +6,96 @@ from datetime import date
 import qrcode
 from io import BytesIO
 
+# ---------------- CONFIGURACIÓN ----------------
+
 st.set_page_config(
     page_title="Sistema de Herramientas",
     layout="wide"
 )
 
-DB_NAME = "inventario_herramientas.db"
+# ---------------- DISEÑO CSS ----------------
+
+st.markdown("""
+<style>
+
+.stApp {
+    background-color: #f5f7fb;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+section[data-testid="stSidebar"] * {
+    color: white !important;
+}
+
+/* Títulos */
+h1 {
+    color: #0f172a;
+    font-size: 42px !important;
+    font-weight: 800 !important;
+}
+
+h2, h3 {
+    color: #1e293b;
+}
+
+/* Métricas */
+div[data-testid="stMetric"] {
+    background: white;
+    padding: 24px;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+div[data-testid="stMetricValue"] {
+    font-size: 34px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+/* Formularios */
+div[data-testid="stForm"] {
+    background: white;
+    padding: 28px;
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+/* Tablas */
+div[data-testid="stDataFrame"] {
+    background: white;
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+/* Botones */
+.stButton button,
+.stDownloadButton button {
+    background: linear-gradient(90deg, #2563eb, #1d4ed8) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    border: none !important;
+    padding: 10px 22px !important;
+    font-weight: 600 !important;
+}
+
+/* Alertas */
+div[data-testid="stAlert"] {
+    border-radius: 14px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- BASE DE DATOS ----------------
+
+DB_NAME = "inventario_herramientas.db"
 
 def conectar():
     return sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -44,8 +126,7 @@ def crear_tablas():
         fecha_solicitud TEXT,
         fecha_devolucion TEXT,
         motivo TEXT,
-        estado TEXT DEFAULT 'Pendiente',
-        FOREIGN KEY(herramienta_id) REFERENCES herramientas(id)
+        estado TEXT DEFAULT 'Pendiente'
     )
     """)
 
@@ -72,8 +153,8 @@ def obtener_herramientas():
 def obtener_herramientas_disponibles():
     conn = conectar()
     df = pd.read_sql_query("""
-        SELECT * FROM herramientas 
-        WHERE cantidad_disponible > 0 
+        SELECT * FROM herramientas
+        WHERE cantidad_disponible > 0
         AND estado = 'Disponible'
     """, conn)
     conn.close()
@@ -97,18 +178,20 @@ def generar_qr(link):
     img.save(buffer, format="PNG")
     return buffer.getvalue()
 
-# ---------------- PARÁMETROS QR ----------------
+# ---------------- PARÁMETROS DE URL ----------------
 
 params = st.query_params
 modo = params.get("modo", "admin")
 herramienta_qr = params.get("herramienta", None)
 
-# ---------------- MODO USUARIO ----------------
+# ==================================================
+# MODO USUARIO
+# ==================================================
 
 if modo == "usuario":
 
-    st.title("🔧 Solicitud de herramienta")
-    st.write("Llena el formulario para solicitar una herramienta.")
+    st.markdown("# Solicitud de herramienta")
+    st.caption("Llena el formulario para solicitar una herramienta disponible.")
 
     herramientas = obtener_herramientas_disponibles()
 
@@ -132,7 +215,7 @@ if modo == "usuario":
 
             herramienta_info = herramientas[herramientas["nombre"] == herramienta_nombre].iloc[0]
 
-            st.info(f"Disponibles: {herramienta_info['cantidad_disponible']}")
+            st.info(f"Disponibles actualmente: {herramienta_info['cantidad_disponible']}")
 
             nombre_usuario = st.text_input("Nombre completo")
             area = st.text_input("Área o departamento")
@@ -188,14 +271,17 @@ if modo == "usuario":
                     conn.commit()
                     conn.close()
 
-                    st.success("✅ Solicitud enviada correctamente.")
-                    st.write("Espera a que el administrador apruebe tu solicitud.")
+                    st.success("Solicitud enviada correctamente.")
+                    st.info("Espera a que el administrador apruebe tu solicitud.")
 
-# ---------------- MODO ADMIN ----------------
+# ==================================================
+# MODO ADMINISTRADOR
+# ==================================================
 
 else:
 
-    st.sidebar.title("🔐 Panel administrador")
+    st.sidebar.markdown("# 🔧 Sistema")
+    st.sidebar.markdown("### Inventario de herramientas")
 
     menu = st.sidebar.radio(
         "Menú",
@@ -214,7 +300,8 @@ else:
 
     if menu == "Dashboard":
 
-        st.title("📊 Dashboard general")
+        st.markdown("# Dashboard general")
+        st.caption("Resumen operativo del inventario, préstamos y solicitudes.")
 
         herramientas = obtener_herramientas()
         solicitudes = obtener_solicitudes()
@@ -228,13 +315,45 @@ else:
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
-        col1.metric("Total herramientas", total_herramientas)
+        col1.metric("Herramientas", total_herramientas)
         col2.metric("Disponibles", disponibles)
-        col3.metric("Solicitudes pendientes", pendientes)
+        col3.metric("Pendientes", pendientes)
         col4.metric("Préstamos activos", aprobadas)
-        col5.metric("Daños registrados", danadas)
+        col5.metric("Daños", danadas)
 
         st.divider()
+
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            if not solicitudes.empty:
+                conteo = solicitudes["herramienta_nombre"].value_counts().reset_index()
+                conteo.columns = ["Herramienta", "Solicitudes"]
+
+                fig = px.bar(
+                    conteo,
+                    x="Herramienta",
+                    y="Solicitudes",
+                    title="Herramientas más solicitadas"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Aún no hay solicitudes para graficar.")
+
+        with col_g2:
+            if not herramientas.empty:
+                estado_df = herramientas.groupby("estado")["cantidad_total"].sum().reset_index()
+
+                fig2 = px.pie(
+                    estado_df,
+                    names="estado",
+                    values="cantidad_total",
+                    title="Estado de herramientas",
+                    hole=0.45
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("Aún no hay herramientas registradas.")
 
         st.subheader("Últimas solicitudes")
         st.dataframe(solicitudes, use_container_width=True)
@@ -243,7 +362,8 @@ else:
 
     elif menu == "Inventario":
 
-        st.title("📦 Inventario de herramientas")
+        st.markdown("# Inventario")
+        st.caption("Registro y control de herramientas disponibles.")
 
         with st.form("form_herramienta"):
             nombre = st.text_input("Nombre de la herramienta")
@@ -289,7 +409,8 @@ else:
 
     elif menu == "Solicitudes":
 
-        st.title("📩 Solicitudes de herramientas")
+        st.markdown("# Solicitudes")
+        st.caption("Aprueba o rechaza las solicitudes enviadas por los usuarios.")
 
         solicitudes = obtener_solicitudes()
 
@@ -298,23 +419,23 @@ else:
         else:
             st.dataframe(solicitudes, use_container_width=True)
 
-            solicitudes_pendientes = solicitudes[solicitudes["estado"] == "Pendiente"]
+            pendientes = solicitudes[solicitudes["estado"] == "Pendiente"]
 
-            if solicitudes_pendientes.empty:
+            if pendientes.empty:
                 st.success("No hay solicitudes pendientes.")
             else:
-                st.subheader("Aprobar o rechazar solicitud")
+                st.subheader("Gestionar solicitud")
 
                 solicitud_id = st.selectbox(
                     "Selecciona una solicitud pendiente",
-                    solicitudes_pendientes["id"]
+                    pendientes["id"]
                 )
 
                 col1, col2 = st.columns(2)
 
                 with col1:
                     if st.button("Aprobar solicitud"):
-                        solicitud = solicitudes_pendientes[solicitudes_pendientes["id"] == solicitud_id].iloc[0]
+                        solicitud = pendientes[pendientes["id"] == solicitud_id].iloc[0]
 
                         conn = conectar()
                         cursor = conn.cursor()
@@ -334,7 +455,10 @@ else:
                             UPDATE herramientas
                             SET cantidad_disponible = ?
                             WHERE id = ?
-                            """, (nueva_cantidad, int(solicitud["herramienta_id"])))
+                            """, (
+                                nueva_cantidad,
+                                int(solicitud["herramienta_id"])
+                            ))
 
                             cursor.execute("""
                             UPDATE solicitudes
@@ -345,7 +469,7 @@ else:
                             conn.commit()
                             st.success("Solicitud aprobada y stock actualizado.")
                         else:
-                            st.error("No hay suficiente cantidad disponible.")
+                            st.error("No hay suficiente stock disponible.")
 
                         conn.close()
 
@@ -369,21 +493,22 @@ else:
 
     elif menu == "Devoluciones":
 
-        st.title("↩️ Registrar devolución")
+        st.markdown("# Devoluciones")
+        st.caption("Registra herramientas devueltas y actualiza el stock.")
 
         solicitudes = obtener_solicitudes()
-        prestamos_activos = solicitudes[solicitudes["estado"] == "Aprobada"]
+        activos = solicitudes[solicitudes["estado"] == "Aprobada"]
 
-        if prestamos_activos.empty:
+        if activos.empty:
             st.info("No hay préstamos activos.")
         else:
             prestamo_id = st.selectbox(
                 "Selecciona préstamo a devolver",
-                prestamos_activos["id"]
+                activos["id"]
             )
 
             if st.button("Registrar devolución"):
-                prestamo = prestamos_activos[prestamos_activos["id"] == prestamo_id].iloc[0]
+                prestamo = activos[activos["id"] == prestamo_id].iloc[0]
 
                 conn = conectar()
                 cursor = conn.cursor()
@@ -406,16 +531,17 @@ else:
                 conn.commit()
                 conn.close()
 
-                st.success("Devolución registrada y stock actualizado.")
+                st.success("Devolución registrada correctamente.")
 
         st.subheader("Préstamos activos")
-        st.dataframe(prestamos_activos, use_container_width=True)
+        st.dataframe(activos, use_container_width=True)
 
     # ---------------- DAÑOS ----------------
 
     elif menu == "Herramientas dañadas":
 
-        st.title("🛠️ Herramientas dañadas")
+        st.markdown("# Herramientas dañadas")
+        st.caption("Registra daños, fallas o herramientas en mal estado.")
 
         herramientas = obtener_herramientas()
 
@@ -464,16 +590,13 @@ else:
 
     elif menu == "Reportes":
 
-        st.title("📈 Reportes")
+        st.markdown("# Reportes")
+        st.caption("Análisis de uso de herramientas y daños registrados.")
 
         solicitudes = obtener_solicitudes()
         danos = obtener_danos()
 
-        if solicitudes.empty:
-            st.info("Aún no hay solicitudes para generar reportes.")
-        else:
-            st.subheader("Herramientas más solicitadas")
-
+        if not solicitudes.empty:
             conteo = solicitudes["herramienta_nombre"].value_counts().reset_index()
             conteo.columns = ["Herramienta", "Solicitudes"]
 
@@ -485,10 +608,10 @@ else:
             )
 
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Aún no hay solicitudes.")
 
         if not danos.empty:
-            st.subheader("Herramientas con más daños")
-
             conteo_danos = danos["herramienta_nombre"].value_counts().reset_index()
             conteo_danos.columns = ["Herramienta", "Daños"]
 
@@ -496,7 +619,8 @@ else:
                 conteo_danos,
                 names="Herramienta",
                 values="Daños",
-                title="Herramientas dañadas"
+                title="Herramientas con más daños",
+                hole=0.45
             )
 
             st.plotly_chart(fig2, use_container_width=True)
@@ -505,28 +629,27 @@ else:
 
     elif menu == "QR":
 
-        st.title("🔳 Generar QR para usuarios")
-
-        st.write("Este QR abre solo el formulario para solicitar herramientas.")
+        st.markdown("# Generador de QR")
+        st.caption("Crea códigos QR para que los usuarios soliciten herramientas.")
 
         url_app = st.text_input(
             "Pega aquí el link público de tu app",
-            placeholder="https://tu-app.streamlit.app"
+            value="https://sistema-herramientas-upq.streamlit.app"
         )
 
         if url_app:
             link_usuario = f"{url_app}/?modo=usuario"
 
-            st.subheader("QR general")
-            st.write(link_usuario)
+            st.subheader("QR general para usuarios")
+            st.code(link_usuario)
 
             qr_general = generar_qr(link_usuario)
-            st.image(qr_general, width=250)
+            st.image(qr_general, width=260)
 
             st.download_button(
                 "Descargar QR general",
                 data=qr_general,
-                file_name="qr_general.png",
+                file_name="qr_general_usuario.png",
                 mime="image/png"
             )
 
@@ -539,21 +662,21 @@ else:
             if herramientas.empty:
                 st.warning("Primero registra herramientas.")
             else:
-                herramienta_qr_nombre = st.selectbox(
+                herramienta_nombre = st.selectbox(
                     "Selecciona herramienta",
                     herramientas["nombre"]
                 )
 
-                link_herramienta = f"{url_app}/?modo=usuario&herramienta={herramienta_qr_nombre}"
+                link_herramienta = f"{url_app}/?modo=usuario&herramienta={herramienta_nombre}"
 
-                st.write(link_herramienta)
+                st.code(link_herramienta)
 
                 qr_herramienta = generar_qr(link_herramienta)
-                st.image(qr_herramienta, width=250)
+                st.image(qr_herramienta, width=260)
 
                 st.download_button(
                     "Descargar QR de herramienta",
                     data=qr_herramienta,
-                    file_name=f"qr_{herramienta_qr_nombre}.png",
+                    file_name=f"qr_{herramienta_nombre}.png",
                     mime="image/png"
                 )
